@@ -78,22 +78,6 @@ class Flashcard {
     required this.explanation,
     required this.category,
   });
-
-  Map<String, dynamic> toJson() => {
-        'article': article,
-        'german': german,
-        'russian': russian,
-        'explanation': explanation,
-        'category': category,
-      };
-
-  factory Flashcard.fromJson(Map<String, dynamic> json) => Flashcard(
-        article: json['article'] ?? '',
-        german: json['german'] ?? '',
-        russian: json['russian'] ?? '',
-        explanation: json['explanation'] ?? '',
-        category: json['category'] ?? 'Общее',
-      );
 }
 
 final List<Flashcard> initialB2Dataset = [
@@ -372,7 +356,7 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
     return {'rank': '-', 'color': Colors.grey, 'multiplier': 1};
   }
 
-  void _handleAnswer(bool knew) async {
+  Future<void> _handleAnswer(bool knew) async {
     final prefs = await SharedPreferences.getInstance();
     int currentTotal = prefs.getInt('total_cards_studied') ?? 0;
     int maxCombo = prefs.getInt('max_combo_record') ?? 0;
@@ -427,8 +411,8 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         child: Column(
           children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
+            // DMC SCORE & RANK BOARD
+            Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
               decoration: BoxDecoration(
@@ -480,18 +464,94 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
               color: rankColor,
             ),
             const SizedBox(height: 20),
+            // ИГРОВАЯ КАРТОЧКА С ПОДДЕРЖКОЙ КЛИКА И СВАЙПА
             Expanded(
-              child: GestureDetector(
-                onTap: () => setState(() => _showFront = !_showFront),
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 300),
-                  child: _showFront
-                      ? _buildCardFront(card, key: const ValueKey(true))
-                      : _buildCardBack(card, key: const ValueKey(false)),
+              child: Dismissible(
+                key: ValueKey('card_$_currentIndex'),
+                background: Container(
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.only(left: 30),
+                  color: Colors.green.shade800,
+                  child: const Icon(Icons.check, color: Colors.white, size: 40),
+                ),
+                secondaryBackground: Container(
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.only(right: 30),
+                  color: Colors.red.shade900,
+                  child: const Icon(Icons.close, color: Colors.white, size: 40),
+                ),
+                onDismissed: (direction) {
+                  if (direction == DismissDirection.startToEnd) {
+                    _handleAnswer(true); // Свайп вправо = ЗНАЮ
+                  } else {
+                    _handleAnswer(false); // Свайп влево = НЕ ЗНАЮ
+                  }
+                },
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _showFront = !_showFront;
+                    });
+                  },
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: Card(
+                      elevation: 6,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: _showFront
+                            ? Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  if (card.article.isNotEmpty)
+                                    Text(
+                                      card.article,
+                                      style: const TextStyle(
+                                          fontSize: 26, fontWeight: FontWeight.bold, color: Colors.redAccent),
+                                    ),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    card.german,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 30),
+                                  const Text(
+                                    'Нажмите, чтобы перевернуть',
+                                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                                  ),
+                                ],
+                              )
+                            : Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    card.russian,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                        fontSize: 26, fontWeight: FontWeight.bold, color: Colors.amberAccent),
+                                  ),
+                                  if (card.explanation.isNotEmpty) ...[
+                                    const SizedBox(height: 20),
+                                    const Divider(),
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      card.explanation,
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(fontSize: 15, fontStyle: FontStyle.italic),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
             const SizedBox(height: 20),
+            // КНОПКИ УПРАВЛЕНИЯ
             Row(
               children: [
                 Expanded(
@@ -522,71 +582,6 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
               ],
             ),
             const SizedBox(height: 20),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCardFront(Flashcard card, {required Key key}) {
-    return Card(
-      key: key,
-      elevation: 6,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (card.article.isNotEmpty)
-              Text(
-                card.article,
-                style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.redAccent),
-              ),
-            const SizedBox(height: 10),
-            Text(
-              card.german,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 30),
-            const Text(
-              'Нажмите, чтобы перевернуть',
-              style: TextStyle(color: Colors.grey, fontSize: 12),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCardBack(Flashcard card, {required Key key}) {
-    return Card(
-      key: key,
-      elevation: 6,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              card.russian,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.amberAccent),
-            ),
-            if (card.explanation.isNotEmpty) ...[
-              const SizedBox(height: 20),
-              const Divider(),
-              const SizedBox(height: 10),
-              Text(
-                card.explanation,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 15, fontStyle: FontStyle.italic),
-              ),
-            ],
           ],
         ),
       ),
