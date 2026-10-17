@@ -97,7 +97,6 @@ class Flashcard {
 }
 
 final List<Flashcard> initialB2Dataset = [
-  // Bewerbung & Vorstellungsgespräch
   Flashcard(
     article: 'die',
     german: 'Stellenausschreibung, -en',
@@ -126,8 +125,6 @@ final List<Flashcard> initialB2Dataset = [
     explanation: 'Ich habe morgen ein wichtiges Vorstellungsgespräch.',
     category: 'Bewerbung',
   ),
-
-  // Arbeitsvertrag & Recht
   Flashcard(
     article: 'der',
     german: 'Arbeitsvertrag, -¨e',
@@ -149,8 +146,6 @@ final List<Flashcard> initialB2Dataset = [
     explanation: 'Die Kündigungsfrist beträgt drei Monate.',
     category: 'Vertrag & Recht',
   ),
-
-  // Büroalltag & Kommunikation
   Flashcard(
     article: '',
     german: 'Verhandlungsgeschick haben',
@@ -174,7 +169,6 @@ final List<Flashcard> initialB2Dataset = [
   ),
 ];
 
-// --- MAIN DASHBOARD (МЕНЮ) ---
 class MainDashboardScreen extends StatefulWidget {
   final bool isDarkMode;
   final VoidCallback onToggleTheme;
@@ -242,7 +236,6 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Панель статистики
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(20),
@@ -324,7 +317,6 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
   }
 }
 
-// --- DMC GAME SCREEN (ИГРОВОЙ ЭКРАН) ---
 class DMCGameScreen extends StatefulWidget {
   final String category;
   final VoidCallback onStatsUpdated;
@@ -369,7 +361,6 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
     });
   }
 
-  // DMC Ranks: D, C, B, A, S, SS, SSS
   Map<String, dynamic> _getRankData() {
     if (_comboCount >= 15) return {'rank': 'SSS', 'color': Colors.amberAccent, 'multiplier': 5};
     if (_comboCount >= 12) return {'rank': 'SS', 'color': Colors.orangeAccent, 'multiplier': 4};
@@ -398,7 +389,7 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
           prefs.setInt('max_combo_record', _comboCount);
         }
       } else {
-        _comboCount = 0; // Сброс комбо при ошибке
+        _comboCount = 0;
       }
 
       _showFront = true;
@@ -435,13 +426,12 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         child: Column(
           children: [
-            // DMC STYLE METER (ПЛАШКА КОМБО)
             AnimatedContainer(
               duration: const Duration(milliseconds: 250),
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
               decoration: BoxDecoration(
-                color: (rankData['color'] as Color).withAlpha(40),
+                color: (rankData['color'] as Color).withOpacity(0.15),
                 borderRadius: BorderRadius.circular(15),
                 border: Border.all(color: rankData['color'] as Color, width: 2),
               ),
@@ -489,7 +479,6 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
               color: rankData['color'] as Color,
             ),
             const SizedBox(height: 20),
-            // ИГРОВАЯ КАРТОЧКА
             Expanded(
               child: GestureDetector(
                 onTap: () => setState(() => _showFront = !_showFront),
@@ -502,7 +491,6 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
               ),
             ),
             const SizedBox(height: 20),
-            // КНОПКИ ЗНАЮ / НЕ ЗНАЮ
             Row(
               children: [
                 Expanded(
@@ -510,7 +498,8 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.red.shade900,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.vertical: 16),
+                      padding: const EdgeInsets.vertical: 16,
+                    ),
                     onPressed: () => _handleAnswer(false),
                     icon: const Icon(Icons.close),
                     label: const Text('НЕ ЗНАЮ', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -522,7 +511,8 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green.shade800,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.vertical: 16),
+                      padding: const EdgeInsets.vertical: 16,
+                    ),
                     onPressed: () => _handleAnswer(true),
                     icon: const Icon(Icons.check),
                     label: const Text('ЗНАЮ!', style: TextStyle(fontWeight: FontWeight.bold)),
