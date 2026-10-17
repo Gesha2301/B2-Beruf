@@ -25,13 +25,13 @@ jobs:
           channel: 'stable'
 
       - name: Generate Android Project Files
-        run: flutter create . --platforms=android
+        run: flutter create . --platforms=android --org=com.b2beruf.app
 
       - name: Install dependencies
         run: flutter pub get
 
       - name: Build APK
-        run: flutter build apk --release
+        run: flutter build apk --release --no-tree-shake-icons
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
