@@ -222,7 +222,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
       appBar: AppBar(
         title: const Text(
           '🔥 B2 BERUF DMC',
-          style: TextStyle(fontWeight: FontWeight.black, letterSpacing: 1.5),
+          style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.5),
         ),
         actions: [
           IconButton(
@@ -262,7 +262,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                     style: const TextStyle(
                       color: Colors.amberAccent,
                       fontSize: 32,
-                      fontWeight: FontWeight.black,
+                      fontWeight: FontWeight.w900,
                       letterSpacing: 2,
                     ),
                   ),
@@ -450,7 +450,7 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
                         'COMBO: $_comboCount STREAK',
                         style: TextStyle(
                           color: rankColor,
-                          fontWeight: FontWeight.black,
+                          fontWeight: FontWeight.w900,
                           fontSize: 16,
                         ),
                       ),
@@ -460,7 +460,7 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
                     rankData['rank'] as String,
                     style: TextStyle(
                       fontSize: 36,
-                      fontWeight: FontWeight.black,
+                      fontWeight: FontWeight.w900,
                       fontStyle: FontStyle.italic,
                       color: rankColor,
                       shadows: [
@@ -499,7 +499,7 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.red.shade900,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.vertical: 16,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
                     ),
                     onPressed: () => _handleAnswer(false),
                     icon: const Icon(Icons.close),
@@ -512,7 +512,7 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green.shade800,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.vertical: 16,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
                     ),
                     onPressed: () => _handleAnswer(true),
                     icon: const Icon(Icons.check),
