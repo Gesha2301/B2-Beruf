@@ -321,10 +321,8 @@ class _DMCGameScreenState extends State<DMCGameScreen> with SingleTickerProvider
   int _score = 0;
   int _maxSessionCombo = 0;
 
-  // Gesture Offset
   Offset _dragOffset = Offset.zero;
 
-  // Animation Controller for Fly-out
   late AnimationController _animController;
   late Animation<Offset> _slideAnimation;
   bool _isProcessing = false;
@@ -336,7 +334,7 @@ class _DMCGameScreenState extends State<DMCGameScreen> with SingleTickerProvider
     _initDeck();
     _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 200),
+      duration: const Duration(milliseconds: 180),
     );
   }
 
@@ -395,6 +393,8 @@ class _DMCGameScreenState extends State<DMCGameScreen> with SingleTickerProvider
     ));
 
     _animController.forward(from: 0.0).then((_) async {
+      _animController.reset();
+
       final prefs = await SharedPreferences.getInstance();
       int currentTotal = prefs.getInt('total_cards_studied') ?? 0;
       int maxRecord = prefs.getInt('max_combo_record') ?? 0;
@@ -419,17 +419,17 @@ class _DMCGameScreenState extends State<DMCGameScreen> with SingleTickerProvider
           }
 
           _showFront = true;
+          _dragOffset = Offset.zero; // СБРОС КООРДИНАТ ДЛЯ НОВОЙ КАРТОЧКИ
+
           if (_currentIndex + 1 >= _deck.length) {
             _isFinished = true;
           } else {
             _currentIndex++;
           }
 
-          _dragOffset = Offset.zero;
-          _isProcessing = false;
+          _isProcessing = false; // МГНОВЕННОЕ СНЯТИЕ БЛОКИРОВКИ
         });
 
-        _animController.reset();
         widget.onStatsUpdated();
       }
     });
@@ -555,8 +555,9 @@ class _DMCGameScreenState extends State<DMCGameScreen> with SingleTickerProvider
                         ),
                       ),
                     ),
-                  // Активная карточка
+                  // Активная карточка с ВАЛЮ-КЛЮЧОМ
                   Positioned.fill(
+                    key: ValueKey('active_card_$_currentIndex'),
                     child: GestureDetector(
                       onPanUpdate: (details) {
                         if (_isProcessing) return;
