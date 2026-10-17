@@ -1,5 +1,3 @@
-import 'dart:async';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -315,7 +313,7 @@ class DMCGameScreen extends StatefulWidget {
   State<DMCGameScreen> createState() => _DMCGameScreenState();
 }
 
-class _DMCGameScreenState extends State<DMCGameScreen> {
+class _DMCGameScreenState extends State<DMCGameScreen> with SingleTickerProviderStateMixin {
   List<Flashcard> _deck = [];
   int _currentIndex = 0;
   bool _showFront = true;
@@ -323,18 +321,29 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
   int _score = 0;
   int _maxSessionCombo = 0;
 
-  // Animation Physics
-  Offset _cardOffset = Offset.zero;
-  double _cardAngle = 0.0;
-  Color? _flashColor;
-  bool _isAnimatingOut = false;
-  double _rankScale = 1.0;
+  // Gesture Offset
+  Offset _dragOffset = Offset.zero;
+
+  // Animation Controller for Fly-out
+  late AnimationController _animController;
+  late Animation<Offset> _slideAnimation;
+  bool _isProcessing = false;
   bool _isFinished = false;
 
   @override
   void initState() {
     super.initState();
     _initDeck();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    super.dispose();
   }
 
   void _initDeck() {
@@ -351,13 +360,12 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
       _deck.shuffle();
       _currentIndex = 0;
       _showFront = true;
-      _cardOffset = Offset.zero;
-      _cardAngle = 0.0;
-      _isAnimatingOut = false;
+      _dragOffset = Offset.zero;
       _score = 0;
       _comboCount = 0;
       _maxSessionCombo = 0;
       _isFinished = false;
+      _isProcessing = false;
     });
   }
 
@@ -372,20 +380,21 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
     return {'rank': '-', 'color': Colors.grey, 'multiplier': 1};
   }
 
-  void _triggerFlyOutAndNext(bool knew) {
-    if (_isAnimatingOut) return;
-    _isAnimatingOut = true;
+  void _swipeNext(bool knew) {
+    if (_isProcessing) return;
+    _isProcessing = true;
 
     final double targetX = knew ? 600.0 : -600.0;
 
-    setState(() {
-      _cardOffset = Offset(targetX, 0);
-      _cardAngle = knew ? 0.35 : -0.35;
-      _flashColor = knew ? Colors.green.withOpacity(0.25) : Colors.red.withOpacity(0.25);
-      _rankScale = 1.35; // Rank Scale Pop
-    });
+    _slideAnimation = Tween<Offset>(
+      begin: _dragOffset,
+      end: Offset(targetX, 0),
+    ).animate(CurvedAnimation(
+      parent: _animController,
+      curve: Curves.easeOut,
+    ));
 
-    Timer(const Duration(milliseconds: 180), () async {
+    _animController.forward(from: 0.0).then((_) async {
       final prefs = await SharedPreferences.getInstance();
       int currentTotal = prefs.getInt('total_cards_studied') ?? 0;
       int maxRecord = prefs.getInt('max_combo_record') ?? 0;
@@ -394,9 +403,6 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
 
       if (mounted) {
         setState(() {
-          _flashColor = null;
-          _rankScale = 1.0;
-
           if (knew) {
             _comboCount++;
             final multiplier = _getRankData()['multiplier'] as int;
@@ -414,16 +420,16 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
 
           _showFront = true;
           if (_currentIndex + 1 >= _deck.length) {
-            _isFinished = true; // Конец раунда
+            _isFinished = true;
           } else {
             _currentIndex++;
           }
 
-          _cardOffset = Offset.zero;
-          _cardAngle = 0.0;
-          _isAnimatingOut = false;
+          _dragOffset = Offset.zero;
+          _isProcessing = false;
         });
 
+        _animController.reset();
         widget.onStatsUpdated();
       }
     });
@@ -458,266 +464,243 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
           )
         ],
       ),
-      body: Stack(
-        children: [
-          if (_flashColor != null)
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 100),
-              color: _flashColor,
-            ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            child: Column(
-              children: [
-                // DMC SCORE BOARD WITH SCALE POP
-                AnimatedScale(
-                  scale: _rankScale,
-                  duration: const Duration(milliseconds: 150),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: rankColor.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(15),
-                      border: Border.all(color: rankColor, width: 2),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'SCORE: $_score',
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                            ),
-                            Text(
-                              'COMBO: $_comboCount STREAK',
-                              style: TextStyle(
-                                color: rankColor,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 16,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Text(
-                          rankData['rank'] as String,
-                          style: TextStyle(
-                            fontSize: 36,
-                            fontWeight: FontWeight.w900,
-                            fontStyle: FontStyle.italic,
-                            color: rankColor,
-                            shadows: [
-                              Shadow(
-                                color: rankColor,
-                                blurRadius: 12,
-                              )
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                LinearProgressIndicator(
-                  value: (_currentIndex + 1) / _deck.length,
-                  color: rankColor,
-                ),
-                const SizedBox(height: 20),
-                // CARD STACK WITH FLY-OFF
-                Expanded(
-                  child: Stack(
+      body: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        child: Column(
+          children: [
+            // DMC SCORE BOARD
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              decoration: BoxDecoration(
+                color: rankColor.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(color: rankColor, width: 2),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Фоновая карточка
-                      if (_currentIndex + 1 < _deck.length)
-                        Positioned.fill(
-                          child: Transform.scale(
-                            scale: 0.94,
-                            child: Opacity(
-                              opacity: 0.6,
-                              child: Card(
-                                elevation: 2,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(24),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      FittedBox(
-                                        fit: BoxFit.scaleDown,
-                                        child: Text(
-                                          nextCard.german,
-                                          textAlign: TextAlign.center,
-                                          style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      // Активная карточка
-                      Positioned.fill(
-                        child: GestureDetector(
-                          onPanUpdate: (details) {
-                            if (_isAnimatingOut) return;
-                            setState(() {
-                              _cardOffset += details.delta;
-                              _cardAngle = _cardOffset.dx / 300;
-                            });
-                          },
-                          onPanEnd: (details) {
-                            if (_isAnimatingOut) return;
-                            if (_cardOffset.dx > 100) {
-                              _triggerFlyOutAndNext(true);
-                            } else if (_cardOffset.dx < -100) {
-                              _triggerFlyOutAndNext(false);
-                            } else {
-                              setState(() {
-                                _cardOffset = Offset.zero;
-                                _cardAngle = 0.0;
-                              });
-                            }
-                          },
-                          onTap: () {
-                            if (_isAnimatingOut) return;
-                            setState(() {
-                              _showFront = !_showFront;
-                            });
-                          },
-                          child: AnimatedContainer(
-                            duration: _isAnimatingOut ? const Duration(milliseconds: 180) : Duration.zero,
-                            curve: Curves.easeOutCubic,
-                            transform: Matrix4.identity()
-                              ..translate(_cardOffset.dx, _cardOffset.dy)
-                              ..rotateZ(_cardAngle),
-                            child: Card(
-                              elevation: 8,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20),
-                                side: BorderSide(
-                                  color: _cardOffset.dx > 40
-                                      ? Colors.green
-                                      : (_cardOffset.dx < -40 ? Colors.red : Colors.transparent),
-                                  width: 3,
-                                ),
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.all(24),
-                                child: _showFront
-                                    ? Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          if (card.article.isNotEmpty)
-                                            Text(
-                                              card.article,
-                                              style: const TextStyle(
-                                                  fontSize: 26, fontWeight: FontWeight.bold, color: Colors.redAccent),
-                                            ),
-                                          const SizedBox(height: 10),
-                                          FittedBox(
-                                            fit: BoxFit.scaleDown,
-                                            child: Text(
-                                              card.german,
-                                              textAlign: TextAlign.center,
-                                              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 30),
-                                          const Text(
-                                            'Нажмите, чтобы перевернуть | Свайп для ответа',
-                                            style: TextStyle(color: Colors.grey, fontSize: 12),
-                                          ),
-                                        ],
-                                      )
-                                    : Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          FittedBox(
-                                            fit: BoxFit.scaleDown,
-                                            child: Text(
-                                              card.russian,
-                                              textAlign: TextAlign.center,
-                                              style: const TextStyle(
-                                                  fontSize: 26, fontWeight: FontWeight.bold, color: Colors.amberAccent),
-                                            ),
-                                          ),
-                                          if (card.explanation.isNotEmpty) ...[
-                                            const SizedBox(height: 20),
-                                            const Divider(),
-                                            const SizedBox(height: 10),
-                                            Text(
-                                              card.explanation,
-                                              textAlign: TextAlign.center,
-                                              style: const TextStyle(fontSize: 15, fontStyle: FontStyle.italic),
-                                            ),
-                                          ],
-                                        ],
-                                      ),
-                              ),
-                            ),
-                          ),
+                      Text(
+                        'SCORE: $_score',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                      Text(
+                        'COMBO: $_comboCount STREAK',
+                        style: TextStyle(
+                          color: rankColor,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 16,
                         ),
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 20),
-                // CONTROL BUTTONS WITH INSTANT ANIMATION
-                Row(
-                  children: [
-                    Expanded(
-                      child: GestureDetector(
-                        onTapDown: (_) => _triggerFlyOutAndNext(false),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          decoration: BoxDecoration(
-                            color: Colors.red.shade900,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.close, color: Colors.white),
-                              SizedBox(width: 8),
-                              Text('НЕ ЗНАЮ', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                            ],
+                  Text(
+                    rankData['rank'] as String,
+                    style: TextStyle(
+                      fontSize: 36,
+                      fontWeight: FontWeight.w900,
+                      fontStyle: FontStyle.italic,
+                      color: rankColor,
+                      shadows: [
+                        Shadow(
+                          color: rankColor,
+                          blurRadius: 12,
+                        )
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            LinearProgressIndicator(
+              value: (_currentIndex + 1) / _deck.length,
+              color: rankColor,
+            ),
+            const SizedBox(height: 20),
+            // CARD STACK
+            Expanded(
+              child: Stack(
+                children: [
+                  // Фоновая следующая карточка
+                  if (_currentIndex + 1 < _deck.length)
+                    Positioned.fill(
+                      child: Transform.scale(
+                        scale: 0.94,
+                        child: Opacity(
+                          opacity: 0.5,
+                          child: Card(
+                            elevation: 2,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text(
+                                      nextCard.german,
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: GestureDetector(
-                        onTapDown: (_) => _triggerFlyOutAndNext(true),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          decoration: BoxDecoration(
-                            color: Colors.green.shade800,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.check, color: Colors.white),
-                              SizedBox(width: 8),
-                              Text('ЗНАЮ!', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                            ],
-                          ),
-                        ),
+                  // Активная карточка
+                  Positioned.fill(
+                    child: GestureDetector(
+                      onPanUpdate: (details) {
+                        if (_isProcessing) return;
+                        setState(() {
+                          _dragOffset += details.delta;
+                        });
+                      },
+                      onPanEnd: (details) {
+                        if (_isProcessing) return;
+                        if (_dragOffset.dx > 100) {
+                          _swipeNext(true);
+                        } else if (_dragOffset.dx < -100) {
+                          _swipeNext(false);
+                        } else {
+                          setState(() {
+                            _dragOffset = Offset.zero;
+                          });
+                        }
+                      },
+                      onTap: () {
+                        if (_isProcessing) return;
+                        setState(() {
+                          _showFront = !_showFront;
+                        });
+                      },
+                      child: AnimatedBuilder(
+                        animation: _animController,
+                        builder: (context, child) {
+                          final Offset currentOffset =
+                              _animController.isAnimating ? _slideAnimation.value : _dragOffset;
+                          final double angle = currentOffset.dx / 300;
+
+                          return Transform.translate(
+                            offset: currentOffset,
+                            child: Transform.rotate(
+                              angle: angle,
+                              child: Card(
+                                elevation: 8,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                  side: BorderSide(
+                                    color: currentOffset.dx > 40
+                                        ? Colors.green
+                                        : (currentOffset.dx < -40 ? Colors.red : Colors.transparent),
+                                    width: 3,
+                                  ),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(24),
+                                  child: _showFront
+                                      ? Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            if (card.article.isNotEmpty)
+                                              Text(
+                                                card.article,
+                                                style: const TextStyle(
+                                                    fontSize: 26, fontWeight: FontWeight.bold, color: Colors.redAccent),
+                                              ),
+                                            const SizedBox(height: 10),
+                                            FittedBox(
+                                              fit: BoxFit.scaleDown,
+                                              child: Text(
+                                                card.german,
+                                                textAlign: TextAlign.center,
+                                                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 30),
+                                            const Text(
+                                              'Нажмите, чтобы перевернуть | Свайп для ответа',
+                                              style: TextStyle(color: Colors.grey, fontSize: 12),
+                                            ),
+                                          ],
+                                        )
+                                      : Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            FittedBox(
+                                              fit: BoxFit.scaleDown,
+                                              child: Text(
+                                                card.russian,
+                                                textAlign: TextAlign.center,
+                                                style: const TextStyle(
+                                                    fontSize: 26, fontWeight: FontWeight.bold, color: Colors.amberAccent),
+                                              ),
+                                            ),
+                                            if (card.explanation.isNotEmpty) ...[
+                                              const SizedBox(height: 20),
+                                              const Divider(),
+                                              const SizedBox(height: 10),
+                                              Text(
+                                                card.explanation,
+                                                textAlign: TextAlign.center,
+                                                style: const TextStyle(fontSize: 15, fontStyle: FontStyle.italic),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ),
-                  ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            // CONTROL BUTTONS
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red.shade900,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    onPressed: () => _swipeNext(false),
+                    icon: const Icon(Icons.close),
+                    label: const Text('НЕ ЗНАЮ', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green.shade800,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    onPressed: () => _swipeNext(true),
+                    icon: const Icon(Icons.check),
+                    label: const Text('ЗНАЮ!', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ),
               ],
             ),
-          ),
-        ],
+            const SizedBox(height: 20),
+          ],
+        ),
       ),
     );
   }
