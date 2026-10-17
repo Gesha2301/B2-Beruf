@@ -369,7 +369,7 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
     if (_comboCount >= 4) return {'rank': 'B', 'color': Colors.blueAccent, 'multiplier': 2};
     if (_comboCount >= 2) return {'rank': 'C', 'color': Colors.greenAccent, 'multiplier': 1};
     if (_comboCount >= 1) return {'rank': 'D', 'color': Colors.grey, 'multiplier': 1};
-    return {'rank': '-', 'color': Colors.transparent, 'multiplier': 1};
+    return {'rank': '-', 'color': Colors.grey, 'multiplier': 1};
   }
 
   void _handleAnswer(bool knew) async {
@@ -410,6 +410,7 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
 
     final card = _deck[_currentIndex];
     final rankData = _getRankData();
+    final Color rankColor = rankData['color'] as Color;
 
     return Scaffold(
       appBar: AppBar(
@@ -431,9 +432,9 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
               decoration: BoxDecoration(
-                color: (rankData['color'] as Color).withOpacity(0.15),
+                color: rankColor.withAlpha(35),
                 borderRadius: BorderRadius.circular(15),
-                border: Border.all(color: rankData['color'] as Color, width: 2),
+                border: Border.all(color: rankColor, width: 2),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -448,7 +449,7 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
                       Text(
                         'COMBO: $_comboCount STREAK',
                         style: TextStyle(
-                          color: rankData['color'] as Color,
+                          color: rankColor,
                           fontWeight: FontWeight.black,
                           fontSize: 16,
                         ),
@@ -456,15 +457,15 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
                     ],
                   ),
                   Text(
-                    rankData['rank'],
+                    rankData['rank'] as String,
                     style: TextStyle(
                       fontSize: 36,
                       fontWeight: FontWeight.black,
                       fontStyle: FontStyle.italic,
-                      color: rankData['color'] as Color,
+                      color: rankColor,
                       shadows: [
                         Shadow(
-                          color: rankData['color'] as Color,
+                          color: rankColor,
                           blurRadius: 12,
                         )
                       ],
@@ -476,7 +477,7 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
             const SizedBox(height: 16),
             LinearProgressIndicator(
               value: (_currentIndex + 1) / _deck.length,
-              color: rankData['color'] as Color,
+              color: rankColor,
             ),
             const SizedBox(height: 20),
             Expanded(
