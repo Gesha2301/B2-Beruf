@@ -351,7 +351,285 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
   }
 
   Map<String, dynamic> _getRankData() {
-    if (_comboCount >= 15) return {'rank': 'SSS', 'color': Colors.amberAccent, 'multiplier': 5};
-    if (_comboCount >= 12) return {'rank': 'SS', 'color': Colors.orangeAccent, 'multiplier': 4};
-    if (_comboCount >= 9) return {'rank': 'S', 'color': Colors.redAccent, 'multiplier': 3};
-    if (_comboCount >= 6) return {'rank
+    if (_comboCount >= 15) {
+      return {'rank': 'SSS', 'color': Colors.amberAccent, 'multiplier': 5};
+    }
+    if (_comboCount >= 12) {
+      return {'rank': 'SS', 'color': Colors.orangeAccent, 'multiplier': 4};
+    }
+    if (_comboCount >= 9) {
+      return {'rank': 'S', 'color': Colors.redAccent, 'multiplier': 3};
+    }
+    if (_comboCount >= 6) {
+      return {'rank': 'A', 'color': Colors.purpleAccent, 'multiplier': 2};
+    }
+    if (_comboCount >= 4) {
+      return {'rank': 'B', 'color': Colors.blueAccent, 'multiplier': 2};
+    }
+    if (_comboCount >= 2) {
+      return {'rank': 'C', 'color': Colors.greenAccent, 'multiplier': 1};
+    }
+    if (_comboCount >= 1) {
+      return {'rank': 'D', 'color': Colors.grey, 'multiplier': 1};
+    }
+    return {'rank': '-', 'color': Colors.grey, 'multiplier': 1};
+  }
+
+  void _processAnswer(bool knew) async {
+    final prefs = await SharedPreferences.getInstance();
+    int currentTotal = prefs.getInt('total_cards_studied') ?? 0;
+    int maxCombo = prefs.getInt('max_combo_record') ?? 0;
+
+    await prefs.setInt('total_cards_studied', currentTotal + 1);
+
+    setState(() {
+      _flashColor = knew ? Colors.green.withAlpha(80) : Colors.red.withAlpha(80);
+    });
+
+    Timer(const Duration(milliseconds: 150), () {
+      if (mounted) setState(() => _flashColor = null);
+    });
+
+    setState(() {
+      if (knew) {
+        _comboCount++;
+        final multiplier = _getRankData()['multiplier'] as int;
+        _score += 100 * multiplier;
+
+        if (_comboCount > maxCombo) {
+          prefs.setInt('max_combo_record', _comboCount);
+        }
+      } else {
+        _comboCount = 0;
+      }
+
+      _showFront = true;
+      _currentIndex = (_currentIndex + 1) % _deck.length;
+      _cardOffset = Offset.zero;
+      _cardAngle = 0.0;
+    });
+
+    widget.onStatsUpdated();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_deck.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(title: Text(widget.category)),
+        body: const Center(child: Text('Нет карточек в этой категории')),
+      );
+    }
+
+    final card = _deck[_currentIndex];
+    final rankData = _getRankData();
+    final Color rankColor = rankData['color'] as Color;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.category),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.shuffle),
+            onPressed: _shuffleDeck,
+            tooltip: 'Перемешать',
+          )
+        ],
+      ),
+      body: Stack(
+        children: [
+          if (_flashColor != null)
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 100),
+              color: _flashColor,
+            ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            child: Column(
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: rankColor.withAlpha(35),
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(color: rankColor, width: 2),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'SCORE: $_score',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                          ),
+                          Text(
+                            'COMBO: $_comboCount STREAK',
+                            style: TextStyle(
+                              color: rankColor,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Text(
+                        rankData['rank'] as String,
+                        style: TextStyle(
+                          fontSize: 36,
+                          fontWeight: FontWeight.w900,
+                          fontStyle: FontStyle.italic,
+                          color: rankColor,
+                          shadows: [
+                            Shadow(
+                              color: rankColor,
+                              blurRadius: 12,
+                            )
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                LinearProgressIndicator(
+                  value: (_currentIndex + 1) / _deck.length,
+                  color: rankColor,
+                ),
+                const SizedBox(height: 20),
+                Expanded(
+                  child: GestureDetector(
+                    onPanUpdate: (details) {
+                      setState(() {
+                        _cardOffset += details.delta;
+                        _cardAngle = _cardOffset.dx / 300;
+                      });
+                    },
+                    onPanEnd: (details) {
+                      if (_cardOffset.dx > 120) {
+                        _processAnswer(true);
+                      } else if (_cardOffset.dx < -120) {
+                        _processAnswer(false);
+                      } else {
+                        setState(() {
+                          _cardOffset = Offset.zero;
+                          _cardAngle = 0.0;
+                        });
+                      }
+                    },
+                    onTap: () {
+                      setState(() {
+                        _showFront = !_showFront;
+                      });
+                    },
+                    child: Transform.translate(
+                      offset: _cardOffset,
+                      child: Transform.rotate(
+                        angle: _cardAngle,
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: Card(
+                            elevation: 8,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                              side: BorderSide(
+                                color: _cardOffset.dx > 50
+                                    ? Colors.green
+                                    : (_cardOffset.dx < -50 ? Colors.red : Colors.transparent),
+                                width: 3,
+                              ),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: _showFront
+                                  ? Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        if (card.article.isNotEmpty)
+                                          Text(
+                                            card.article,
+                                            style: const TextStyle(
+                                                fontSize: 26, fontWeight: FontWeight.bold, color: Colors.redAccent),
+                                          ),
+                                        const SizedBox(height: 10),
+                                        Text(
+                                          card.german,
+                                          textAlign: TextAlign.center,
+                                          style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                                        ),
+                                        const SizedBox(height: 30),
+                                        const Text(
+                                          'Нажмите, чтобы перевернуть | Свайп для ответа',
+                                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                                        ),
+                                      ],
+                                    )
+                                  : Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Text(
+                                          card.russian,
+                                          textAlign: TextAlign.center,
+                                          style: const TextStyle(
+                                              fontSize: 26, fontWeight: FontWeight.bold, color: Colors.amberAccent),
+                                        ),
+                                        if (card.explanation.isNotEmpty) ...[
+                                          const SizedBox(height: 20),
+                                          const Divider(),
+                                          const SizedBox(height: 10),
+                                          Text(
+                                            card.explanation,
+                                            textAlign: TextAlign.center,
+                                            style: const TextStyle(fontSize: 15, fontStyle: FontStyle.italic),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red.shade900,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                        onPressed: () => _processAnswer(false),
+                        icon: const Icon(Icons.close),
+                        label: const Text('НЕ ЗНАЮ', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green.shade800,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                        onPressed: () => _processAnswer(true),
+                        icon: const Icon(Icons.check),
+                        label: const Text('ЗНАЮ!', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
