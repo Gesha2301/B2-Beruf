@@ -53,13 +53,12 @@ class Flashcard {
       );
 }
 
-// Готовая начальная база B2 Beruf
 final List<Flashcard> initialB2Cards = [
   Flashcard(
     article: 'die',
     german: 'Stellenausschreibung, -en',
     russian: 'Объявление о вакансии',
-    explanation: 'Официальное публикация о поиске сотрудника. Пример: Die Stellenausschreibung passt genau zu meinem Profil.',
+    explanation: 'Официальная публикация о поиске сотрудника. Пример: Die Stellenausschreibung passt genau zu meinem Profil.',
   ),
   Flashcard(
     article: 'das',
@@ -116,6 +115,7 @@ class _FlashcardScreenState extends State<FlashcardScreen> {
   List<Flashcard> _cards = [];
   int _currentIndex = 0;
   bool _showFront = true;
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -124,17 +124,26 @@ class _FlashcardScreenState extends State<FlashcardScreen> {
   }
 
   Future<void> _loadCards() async {
-    final prefs = await SharedPreferences.getInstance();
-    final String? savedData = prefs.getString('custom_b2_cards');
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String? savedData = prefs.getString('custom_b2_cards');
 
-    if (savedData != null) {
-      final List decoded = jsonDecode(savedData);
-      setState(() {
-        _cards = decoded.map((item) => Flashcard.fromJson(item)).toList();
-      });
-    } else {
+      if (savedData != null && savedData.isNotEmpty) {
+        final List decoded = jsonDecode(savedData);
+        setState(() {
+          _cards = decoded.map((item) => Flashcard.fromJson(item)).toList();
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _cards = List.from(initialB2Cards);
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
       setState(() {
         _cards = List.from(initialB2Cards);
+        _isLoading = false;
       });
     }
   }
@@ -241,9 +250,21 @@ class _FlashcardScreenState extends State<FlashcardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_cards.isEmpty) {
+    if (_isLoading) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_cards.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('B2 Beruf — Карточки')),
+        body: const Center(child: Text('Список карточек пуст')),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: _showAddCardDialog,
+          icon: const Icon(Icons.add),
+          label: const Text('Добавить'),
+        ),
       );
     }
 
@@ -277,7 +298,6 @@ class _FlashcardScreenState extends State<FlashcardScreen> {
               ),
             ),
             const SizedBox(height: 20),
-
             Expanded(
               child: GestureDetector(
                 onTap: _flipCard,
@@ -308,9 +328,7 @@ class _FlashcardScreenState extends State<FlashcardScreen> {
                 ),
               ),
             ),
-
             const SizedBox(height: 20),
-
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
@@ -326,7 +344,7 @@ class _FlashcardScreenState extends State<FlashcardScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 70), // Отступ под плавающую кнопку
+            const SizedBox(height: 70),
           ],
         ),
       ),
