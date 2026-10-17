@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -314,18 +315,21 @@ class DMCGameScreen extends StatefulWidget {
   State<DMCGameScreen> createState() => _DMCGameScreenState();
 }
 
-class _DMCGameScreenState extends State<DMCGameScreen> with SingleTickerProviderStateMixin {
+class _DMCGameScreenState extends State<DMCGameScreen> {
   List<Flashcard> _deck = [];
   int _currentIndex = 0;
   bool _showFront = true;
   int _comboCount = 0;
   int _score = 0;
+  int _maxSessionCombo = 0;
 
-  // Swipe Animation Physics
+  // Animation Physics
   Offset _cardOffset = Offset.zero;
   double _cardAngle = 0.0;
   Color? _flashColor;
   bool _isAnimatingOut = false;
+  double _rankScale = 1.0;
+  bool _isFinished = false;
 
   @override
   void initState() {
@@ -350,6 +354,10 @@ class _DMCGameScreenState extends State<DMCGameScreen> with SingleTickerProvider
       _cardOffset = Offset.zero;
       _cardAngle = 0.0;
       _isAnimatingOut = false;
+      _score = 0;
+      _comboCount = 0;
+      _maxSessionCombo = 0;
+      _isFinished = false;
     });
   }
 
@@ -368,30 +376,36 @@ class _DMCGameScreenState extends State<DMCGameScreen> with SingleTickerProvider
     if (_isAnimatingOut) return;
     _isAnimatingOut = true;
 
-    // Магнитная траектория вылета
-    final double targetX = knew ? 500.0 : -500.0;
-    
+    final double targetX = knew ? 600.0 : -600.0;
+
     setState(() {
-      _cardOffset = Offset(targetX, _cardOffset.dy);
-      _cardAngle = targetX / 200;
-      _flashColor = knew ? Colors.green.withAlpha(80) : Colors.red.withAlpha(80);
+      _cardOffset = Offset(targetX, 0);
+      _cardAngle = knew ? 0.35 : -0.35;
+      _flashColor = knew ? Colors.green.withOpacity(0.25) : Colors.red.withOpacity(0.25);
+      _rankScale = 1.35; // Rank Scale Pop
     });
 
-    Timer(const Duration(milliseconds: 200), () async {
+    Timer(const Duration(milliseconds: 180), () async {
       final prefs = await SharedPreferences.getInstance();
       int currentTotal = prefs.getInt('total_cards_studied') ?? 0;
-      int maxCombo = prefs.getInt('max_combo_record') ?? 0;
+      int maxRecord = prefs.getInt('max_combo_record') ?? 0;
 
       await prefs.setInt('total_cards_studied', currentTotal + 1);
 
       if (mounted) {
         setState(() {
+          _flashColor = null;
+          _rankScale = 1.0;
+
           if (knew) {
             _comboCount++;
             final multiplier = _getRankData()['multiplier'] as int;
             _score += 100 * multiplier;
 
-            if (_comboCount > maxCombo) {
+            if (_comboCount > _maxSessionCombo) {
+              _maxSessionCombo = _comboCount;
+            }
+            if (_comboCount > maxRecord) {
               prefs.setInt('max_combo_record', _comboCount);
             }
           } else {
@@ -399,10 +413,14 @@ class _DMCGameScreenState extends State<DMCGameScreen> with SingleTickerProvider
           }
 
           _showFront = true;
-          _currentIndex = (_currentIndex + 1) % _deck.length;
+          if (_currentIndex + 1 >= _deck.length) {
+            _isFinished = true; // Конец раунда
+          } else {
+            _currentIndex++;
+          }
+
           _cardOffset = Offset.zero;
           _cardAngle = 0.0;
-          _flashColor = null;
           _isAnimatingOut = false;
         });
 
@@ -418,6 +436,10 @@ class _DMCGameScreenState extends State<DMCGameScreen> with SingleTickerProvider
         appBar: AppBar(title: Text(widget.category)),
         body: const Center(child: Text('Нет карточек в этой категории')),
       );
+    }
+
+    if (_isFinished) {
+      return _buildResultScreen();
     }
 
     final card = _deck[_currentIndex];
@@ -447,51 +469,55 @@ class _DMCGameScreenState extends State<DMCGameScreen> with SingleTickerProvider
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             child: Column(
               children: [
-                // DMC SCORE BOARD
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: rankColor.withAlpha(35),
-                    borderRadius: BorderRadius.circular(15),
-                    border: Border.all(color: rankColor, width: 2),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'SCORE: $_score',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                          ),
-                          Text(
-                            'COMBO: $_comboCount STREAK',
-                            style: TextStyle(
-                              color: rankColor,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 16,
+                // DMC SCORE BOARD WITH SCALE POP
+                AnimatedScale(
+                  scale: _rankScale,
+                  duration: const Duration(milliseconds: 150),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: rankColor.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(15),
+                      border: Border.all(color: rankColor, width: 2),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'SCORE: $_score',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                             ),
-                          ),
-                        ],
-                      ),
-                      Text(
-                        rankData['rank'] as String,
-                        style: TextStyle(
-                          fontSize: 36,
-                          fontWeight: FontWeight.w900,
-                          fontStyle: FontStyle.italic,
-                          color: rankColor,
-                          shadows: [
-                            Shadow(
-                              color: rankColor,
-                              blurRadius: 12,
-                            )
+                            Text(
+                              'COMBO: $_comboCount STREAK',
+                              style: TextStyle(
+                                color: rankColor,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 16,
+                              ),
+                            ),
                           ],
                         ),
-                      ),
-                    ],
+                        Text(
+                          rankData['rank'] as String,
+                          style: TextStyle(
+                            fontSize: 36,
+                            fontWeight: FontWeight.w900,
+                            fontStyle: FontStyle.italic,
+                            color: rankColor,
+                            shadows: [
+                              Shadow(
+                                color: rankColor,
+                                blurRadius: 12,
+                              )
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -500,40 +526,41 @@ class _DMCGameScreenState extends State<DMCGameScreen> with SingleTickerProvider
                   color: rankColor,
                 ),
                 const SizedBox(height: 20),
-                // CARD DECK WITH MAGNET & FLY-OFF
+                // CARD STACK WITH FLY-OFF
                 Expanded(
                   child: Stack(
                     children: [
-                      // Фоновая следующая карточка
-                      Positioned.fill(
-                        child: Transform.scale(
-                          scale: 0.94,
-                          child: Opacity(
-                            opacity: 0.6,
-                            child: Card(
-                              elevation: 2,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                              child: Padding(
-                                padding: const EdgeInsets.all(24),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    FittedBox(
-                                      fit: BoxFit.scaleDown,
-                                      child: Text(
-                                        nextCard.german,
-                                        textAlign: TextAlign.center,
-                                        style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                      // Фоновая карточка
+                      if (_currentIndex + 1 < _deck.length)
+                        Positioned.fill(
+                          child: Transform.scale(
+                            scale: 0.94,
+                            child: Opacity(
+                              opacity: 0.6,
+                              child: Card(
+                                elevation: 2,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(24),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        child: Text(
+                                          nextCard.german,
+                                          textAlign: TextAlign.center,
+                                          style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                      // Главная управляемая карточка
+                      // Активная карточка
                       Positioned.fill(
                         child: GestureDetector(
                           onPanUpdate: (details) {
@@ -546,9 +573,9 @@ class _DMCGameScreenState extends State<DMCGameScreen> with SingleTickerProvider
                           onPanEnd: (details) {
                             if (_isAnimatingOut) return;
                             if (_cardOffset.dx > 100) {
-                              _triggerFlyOutAndNext(true); // Магнит вправо (Знаю)
+                              _triggerFlyOutAndNext(true);
                             } else if (_cardOffset.dx < -100) {
-                              _triggerFlyOutAndNext(false); // Магнит влево (Не знаю)
+                              _triggerFlyOutAndNext(false);
                             } else {
                               setState(() {
                                 _cardOffset = Offset.zero;
@@ -563,9 +590,7 @@ class _DMCGameScreenState extends State<DMCGameScreen> with SingleTickerProvider
                             });
                           },
                           child: AnimatedContainer(
-                            duration: _isAnimatingOut
-                                ? const Duration(milliseconds: 200)
-                                : Duration.zero,
+                            duration: _isAnimatingOut ? const Duration(milliseconds: 180) : Duration.zero,
                             curve: Curves.easeOutCubic,
                             transform: Matrix4.identity()
                               ..translate(_cardOffset.dx, _cardOffset.dy)
@@ -642,32 +667,48 @@ class _DMCGameScreenState extends State<DMCGameScreen> with SingleTickerProvider
                   ),
                 ),
                 const SizedBox(height: 20),
-                // CONTROL BUTTONS
+                // CONTROL BUTTONS WITH INSTANT ANIMATION
                 Row(
                   children: [
                     Expanded(
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red.shade900,
-                          foregroundColor: Colors.white,
+                      child: GestureDetector(
+                        onTapDown: (_) => _triggerFlyOutAndNext(false),
+                        child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 16),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade900,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.close, color: Colors.white),
+                              SizedBox(width: 8),
+                              Text('НЕ ЗНАЮ', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
                         ),
-                        onPressed: () => _triggerFlyOutAndNext(false),
-                        icon: const Icon(Icons.close),
-                        label: const Text('НЕ ЗНАЮ', style: TextStyle(fontWeight: FontWeight.bold)),
                       ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green.shade800,
-                          foregroundColor: Colors.white,
+                      child: GestureDetector(
+                        onTapDown: (_) => _triggerFlyOutAndNext(true),
+                        child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 16),
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade800,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.check, color: Colors.white),
+                              SizedBox(width: 8),
+                              Text('ЗНАЮ!', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
                         ),
-                        onPressed: () => _triggerFlyOutAndNext(true),
-                        icon: const Icon(Icons.check),
-                        label: const Text('ЗНАЮ!', style: TextStyle(fontWeight: FontWeight.bold)),
                       ),
                     ),
                   ],
@@ -677,6 +718,65 @@ class _DMCGameScreenState extends State<DMCGameScreen> with SingleTickerProvider
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildResultScreen() {
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text(
+                'STAGE CLEAR!',
+                style: TextStyle(
+                  fontSize: 36,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 2,
+                  color: Colors.amberAccent,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade900.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.redAccent, width: 2),
+                ),
+                child: Column(
+                  children: [
+                    Text('ФИНАЛЬНЫЙ СЧЕТ: $_score',
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 12),
+                    Text('МАКС. КОМБО: $_maxSessionCombo STREAK',
+                        style: const TextStyle(fontSize: 18, color: Colors.amberAccent, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 30),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.redAccent,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                ),
+                onPressed: _shuffleDeck,
+                icon: const Icon(Icons.refresh),
+                label: const Text('ПРОЙТИ СНОВА', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('В ГЛАВНОЕ МЕНЮ', style: TextStyle(color: Colors.white70)),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
