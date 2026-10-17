@@ -497,7 +497,7 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
               color: rankColor,
             ),
             const SizedBox(height: 20),
-            // PAGE VIEW CARD ENGINE (СВЕРХСТАБИЛЬНЫЙ СВАЙП)
+            // PAGE VIEW CARD ENGINE
             Expanded(
               child: PageView.builder(
                 controller: _pageController,
@@ -646,4 +646,38 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
                 decoration: BoxDecoration(
                   color: Colors.red.shade900.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.redAccent, width: 
+                  border: Border.all(color: Colors.redAccent, width: 2),
+                ),
+                child: Column(
+                  children: [
+                    Text('ФИНАЛЬНЫЙ СЧЕТ: $_score',
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 12),
+                    Text('МАКС. КОМБО: $_maxSessionCombo STREAK',
+                        style: const TextStyle(fontSize: 18, color: Colors.amberAccent, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 30),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.redAccent,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                ),
+                onPressed: _shuffleDeck,
+                icon: const Icon(Icons.refresh),
+                label: const Text('ПРОЙТИ СНОВА', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('В ГЛАВНОЕ МЕНЮ', style: TextStyle(color: Colors.white70)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
