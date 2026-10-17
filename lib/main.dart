@@ -314,16 +314,18 @@ class DMCGameScreen extends StatefulWidget {
   State<DMCGameScreen> createState() => _DMCGameScreenState();
 }
 
-class _DMCGameScreenState extends State<DMCGameScreen> {
+class _DMCGameScreenState extends State<DMCGameScreen> with SingleTickerProviderStateMixin {
   List<Flashcard> _deck = [];
   int _currentIndex = 0;
   bool _showFront = true;
   int _comboCount = 0;
   int _score = 0;
 
+  // Swipe Animation Physics
   Offset _cardOffset = Offset.zero;
   double _cardAngle = 0.0;
   Color? _flashColor;
+  bool _isAnimatingOut = false;
 
   @override
   void initState() {
@@ -347,69 +349,66 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
       _showFront = true;
       _cardOffset = Offset.zero;
       _cardAngle = 0.0;
+      _isAnimatingOut = false;
     });
   }
 
   Map<String, dynamic> _getRankData() {
-    if (_comboCount >= 15) {
-      return {'rank': 'SSS', 'color': Colors.amberAccent, 'multiplier': 5};
-    }
-    if (_comboCount >= 12) {
-      return {'rank': 'SS', 'color': Colors.orangeAccent, 'multiplier': 4};
-    }
-    if (_comboCount >= 9) {
-      return {'rank': 'S', 'color': Colors.redAccent, 'multiplier': 3};
-    }
-    if (_comboCount >= 6) {
-      return {'rank': 'A', 'color': Colors.purpleAccent, 'multiplier': 2};
-    }
-    if (_comboCount >= 4) {
-      return {'rank': 'B', 'color': Colors.blueAccent, 'multiplier': 2};
-    }
-    if (_comboCount >= 2) {
-      return {'rank': 'C', 'color': Colors.greenAccent, 'multiplier': 1};
-    }
-    if (_comboCount >= 1) {
-      return {'rank': 'D', 'color': Colors.grey, 'multiplier': 1};
-    }
+    if (_comboCount >= 15) return {'rank': 'SSS', 'color': Colors.amberAccent, 'multiplier': 5};
+    if (_comboCount >= 12) return {'rank': 'SS', 'color': Colors.orangeAccent, 'multiplier': 4};
+    if (_comboCount >= 9) return {'rank': 'S', 'color': Colors.redAccent, 'multiplier': 3};
+    if (_comboCount >= 6) return {'rank': 'A', 'color': Colors.purpleAccent, 'multiplier': 2};
+    if (_comboCount >= 4) return {'rank': 'B', 'color': Colors.blueAccent, 'multiplier': 2};
+    if (_comboCount >= 2) return {'rank': 'C', 'color': Colors.greenAccent, 'multiplier': 1};
+    if (_comboCount >= 1) return {'rank': 'D', 'color': Colors.grey, 'multiplier': 1};
     return {'rank': '-', 'color': Colors.grey, 'multiplier': 1};
   }
 
-  void _processAnswer(bool knew) async {
-    final prefs = await SharedPreferences.getInstance();
-    int currentTotal = prefs.getInt('total_cards_studied') ?? 0;
-    int maxCombo = prefs.getInt('max_combo_record') ?? 0;
+  void _triggerFlyOutAndNext(bool knew) {
+    if (_isAnimatingOut) return;
+    _isAnimatingOut = true;
 
-    await prefs.setInt('total_cards_studied', currentTotal + 1);
-
+    // Магнитная траектория вылета
+    final double targetX = knew ? 500.0 : -500.0;
+    
     setState(() {
+      _cardOffset = Offset(targetX, _cardOffset.dy);
+      _cardAngle = targetX / 200;
       _flashColor = knew ? Colors.green.withAlpha(80) : Colors.red.withAlpha(80);
     });
 
-    Timer(const Duration(milliseconds: 150), () {
-      if (mounted) setState(() => _flashColor = null);
-    });
+    Timer(const Duration(milliseconds: 200), () async {
+      final prefs = await SharedPreferences.getInstance();
+      int currentTotal = prefs.getInt('total_cards_studied') ?? 0;
+      int maxCombo = prefs.getInt('max_combo_record') ?? 0;
 
-    setState(() {
-      if (knew) {
-        _comboCount++;
-        final multiplier = _getRankData()['multiplier'] as int;
-        _score += 100 * multiplier;
+      await prefs.setInt('total_cards_studied', currentTotal + 1);
 
-        if (_comboCount > maxCombo) {
-          prefs.setInt('max_combo_record', _comboCount);
-        }
-      } else {
-        _comboCount = 0;
+      if (mounted) {
+        setState(() {
+          if (knew) {
+            _comboCount++;
+            final multiplier = _getRankData()['multiplier'] as int;
+            _score += 100 * multiplier;
+
+            if (_comboCount > maxCombo) {
+              prefs.setInt('max_combo_record', _comboCount);
+            }
+          } else {
+            _comboCount = 0;
+          }
+
+          _showFront = true;
+          _currentIndex = (_currentIndex + 1) % _deck.length;
+          _cardOffset = Offset.zero;
+          _cardAngle = 0.0;
+          _flashColor = null;
+          _isAnimatingOut = false;
+        });
+
+        widget.onStatsUpdated();
       }
-
-      _showFront = true;
-      _currentIndex = (_currentIndex + 1) % _deck.length;
-      _cardOffset = Offset.zero;
-      _cardAngle = 0.0;
     });
-
-    widget.onStatsUpdated();
   }
 
   @override
@@ -422,6 +421,7 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
     }
 
     final card = _deck[_currentIndex];
+    final nextCard = _deck[(_currentIndex + 1) % _deck.length];
     final rankData = _getRankData();
     final Color rankColor = rankData['color'] as Color;
 
@@ -447,6 +447,7 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             child: Column(
               children: [
+                // DMC SCORE BOARD
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
@@ -499,102 +500,149 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
                   color: rankColor,
                 ),
                 const SizedBox(height: 20),
+                // CARD DECK WITH MAGNET & FLY-OFF
                 Expanded(
-                  child: GestureDetector(
-                    onPanUpdate: (details) {
-                      setState(() {
-                        _cardOffset += details.delta;
-                        _cardAngle = _cardOffset.dx / 300;
-                      });
-                    },
-                    onPanEnd: (details) {
-                      if (_cardOffset.dx > 120) {
-                        _processAnswer(true);
-                      } else if (_cardOffset.dx < -120) {
-                        _processAnswer(false);
-                      } else {
-                        setState(() {
-                          _cardOffset = Offset.zero;
-                          _cardAngle = 0.0;
-                        });
-                      }
-                    },
-                    onTap: () {
-                      setState(() {
-                        _showFront = !_showFront;
-                      });
-                    },
-                    child: Transform.translate(
-                      offset: _cardOffset,
-                      child: Transform.rotate(
-                        angle: _cardAngle,
-                        child: SizedBox(
-                          width: double.infinity,
-                          child: Card(
-                            elevation: 8,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
-                              side: BorderSide(
-                                color: _cardOffset.dx > 50
-                                    ? Colors.green
-                                    : (_cardOffset.dx < -50 ? Colors.red : Colors.transparent),
-                                width: 3,
-                              ),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(24),
-                              child: _showFront
-                                  ? Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        if (card.article.isNotEmpty)
-                                          Text(
-                                            card.article,
-                                            style: const TextStyle(
-                                                fontSize: 26, fontWeight: FontWeight.bold, color: Colors.redAccent),
-                                          ),
-                                        const SizedBox(height: 10),
-                                        Text(
-                                          card.german,
-                                          textAlign: TextAlign.center,
-                                          style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                                        ),
-                                        const SizedBox(height: 30),
-                                        const Text(
-                                          'Нажмите, чтобы перевернуть | Свайп для ответа',
-                                          style: TextStyle(color: Colors.grey, fontSize: 12),
-                                        ),
-                                      ],
-                                    )
-                                  : Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Text(
-                                          card.russian,
-                                          textAlign: TextAlign.center,
-                                          style: const TextStyle(
-                                              fontSize: 26, fontWeight: FontWeight.bold, color: Colors.amberAccent),
-                                        ),
-                                        if (card.explanation.isNotEmpty) ...[
-                                          const SizedBox(height: 20),
-                                          const Divider(),
-                                          const SizedBox(height: 10),
-                                          Text(
-                                            card.explanation,
-                                            textAlign: TextAlign.center,
-                                            style: const TextStyle(fontSize: 15, fontStyle: FontStyle.italic),
-                                          ),
-                                        ],
-                                      ],
+                  child: Stack(
+                    children: [
+                      // Фоновая следующая карточка
+                      Positioned.fill(
+                        child: Transform.scale(
+                          scale: 0.94,
+                          child: Opacity(
+                            opacity: 0.6,
+                            child: Card(
+                              elevation: 2,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                              child: Padding(
+                                padding: const EdgeInsets.all(24),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Text(
+                                        nextCard.german,
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                                      ),
                                     ),
+                                  ],
+                                ),
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
+                      // Главная управляемая карточка
+                      Positioned.fill(
+                        child: GestureDetector(
+                          onPanUpdate: (details) {
+                            if (_isAnimatingOut) return;
+                            setState(() {
+                              _cardOffset += details.delta;
+                              _cardAngle = _cardOffset.dx / 300;
+                            });
+                          },
+                          onPanEnd: (details) {
+                            if (_isAnimatingOut) return;
+                            if (_cardOffset.dx > 100) {
+                              _triggerFlyOutAndNext(true); // Магнит вправо (Знаю)
+                            } else if (_cardOffset.dx < -100) {
+                              _triggerFlyOutAndNext(false); // Магнит влево (Не знаю)
+                            } else {
+                              setState(() {
+                                _cardOffset = Offset.zero;
+                                _cardAngle = 0.0;
+                              });
+                            }
+                          },
+                          onTap: () {
+                            if (_isAnimatingOut) return;
+                            setState(() {
+                              _showFront = !_showFront;
+                            });
+                          },
+                          child: AnimatedContainer(
+                            duration: _isAnimatingOut
+                                ? const Duration(milliseconds: 200)
+                                : Duration.zero,
+                            curve: Curves.easeOutCubic,
+                            transform: Matrix4.identity()
+                              ..translate(_cardOffset.dx, _cardOffset.dy)
+                              ..rotateZ(_cardAngle),
+                            child: Card(
+                              elevation: 8,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                                side: BorderSide(
+                                  color: _cardOffset.dx > 40
+                                      ? Colors.green
+                                      : (_cardOffset.dx < -40 ? Colors.red : Colors.transparent),
+                                  width: 3,
+                                ),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(24),
+                                child: _showFront
+                                    ? Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          if (card.article.isNotEmpty)
+                                            Text(
+                                              card.article,
+                                              style: const TextStyle(
+                                                  fontSize: 26, fontWeight: FontWeight.bold, color: Colors.redAccent),
+                                            ),
+                                          const SizedBox(height: 10),
+                                          FittedBox(
+                                            fit: BoxFit.scaleDown,
+                                            child: Text(
+                                              card.german,
+                                              textAlign: TextAlign.center,
+                                              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 30),
+                                          const Text(
+                                            'Нажмите, чтобы перевернуть | Свайп для ответа',
+                                            style: TextStyle(color: Colors.grey, fontSize: 12),
+                                          ),
+                                        ],
+                                      )
+                                    : Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          FittedBox(
+                                            fit: BoxFit.scaleDown,
+                                            child: Text(
+                                              card.russian,
+                                              textAlign: TextAlign.center,
+                                              style: const TextStyle(
+                                                  fontSize: 26, fontWeight: FontWeight.bold, color: Colors.amberAccent),
+                                            ),
+                                          ),
+                                          if (card.explanation.isNotEmpty) ...[
+                                            const SizedBox(height: 20),
+                                            const Divider(),
+                                            const SizedBox(height: 10),
+                                            Text(
+                                              card.explanation,
+                                              textAlign: TextAlign.center,
+                                              style: const TextStyle(fontSize: 15, fontStyle: FontStyle.italic),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 20),
+                // CONTROL BUTTONS
                 Row(
                   children: [
                     Expanded(
@@ -604,7 +652,7 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
-                        onPressed: () => _processAnswer(false),
+                        onPressed: () => _triggerFlyOutAndNext(false),
                         icon: const Icon(Icons.close),
                         label: const Text('НЕ ЗНАЮ', style: TextStyle(fontWeight: FontWeight.bold)),
                       ),
@@ -617,7 +665,7 @@ class _DMCGameScreenState extends State<DMCGameScreen> {
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
-                        onPressed: () => _processAnswer(true),
+                        onPressed: () => _triggerFlyOutAndNext(true),
                         icon: const Icon(Icons.check),
                         label: const Text('ЗНАЮ!', style: TextStyle(fontWeight: FontWeight.bold)),
                       ),
