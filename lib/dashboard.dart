@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'data.dart';
 import 'sound.dart';
-import 'game_screen.dart';
+import 'cards_tab.dart';
 import 'lesen_screen.dart';
 import 'hoeren_screen.dart';
 import 'schreiben_screen.dart';
@@ -43,35 +43,58 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> with SingleTi
     });
   }
 
-  Future<void> _startSession(String category) async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => GameScreen(
-          selectedCategory: category,
-          onStatsUpdated: _loadStats,
-        ),
-      ),
-    );
-    _loadStats();
+  Future<void> _handleStatsUpdated(int combo, int delta) async {
+    final nextTotal = _totalStudied + delta;
+    int nextCombo = _maxCombo;
+    if (combo > _maxCombo) {
+      nextCombo = combo;
+    }
+    setState(() {
+      _totalStudied = nextTotal;
+      _maxCombo = nextCombo;
+    });
+    final p = await SharedPreferences.getInstance();
+    await p.setInt('total_cards_studied', nextTotal);
+    if (combo > (p.getInt('max_combo_record') ?? 0)) {
+      await p.setInt('max_combo_record', combo);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final categories = ['Все карточки', ...getUniqueCategories()];
-    final counts = getCategoryCounts();
-
     return Scaffold(
       appBar: AppBar(
-        title: const Text('B2 BERUF DMC',
-            style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 2, fontSize: 18)),
-        centerTitle: false,
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [Colors.deepOrange, Colors.amber]),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.local_fire_department_rounded, size: 20, color: Colors.white),
+            ),
+            const SizedBox(width: 8),
+            const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'B2 BERUF DMC',
+                  style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.5, fontSize: 16),
+                ),
+                Text(
+                  'Экзаменационный тренажер B2',
+                  style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.normal),
+                ),
+              ],
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             icon: Icon(DmcAudio.soundEnabled ? Icons.volume_up_rounded : Icons.volume_off_rounded),
-            onPressed: () {
-              setState(() => DmcAudio.toggleSound());
-            },
+            onPressed: () => setState(() => DmcAudio.toggleSound()),
             tooltip: 'Звуковые эффекты',
           ),
           IconButton(
@@ -80,100 +103,57 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> with SingleTi
             tooltip: 'Сменить тему',
           ),
         ],
-        bottom: TabBar(
-          controller: _tabCtrl,
-          isScrollable: true,
-          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-          tabs: const [
-            Tab(icon: Icon(Icons.style_rounded, size: 20), text: 'Карты'),
-            Tab(icon: Icon(Icons.menu_book_rounded, size: 20), text: 'Lesen'),
-            Tab(icon: Icon(Icons.headphones_rounded, size: 20), text: 'Hören'),
-            Tab(icon: Icon(Icons.edit_note_rounded, size: 20), text: 'Schreiben'),
-          ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(74),
+          child: Column(
+            children: [
+              TabBar(
+                controller: _tabCtrl,
+                isScrollable: true,
+                indicatorColor: Colors.redAccent,
+                labelColor: Colors.white,
+                unselectedLabelColor: Colors.grey,
+                labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                tabs: const [
+                  Tab(icon: Icon(Icons.style_rounded, size: 18), text: 'Карты'),
+                  Tab(icon: Icon(Icons.menu_book_rounded, size: 18), text: 'Lesen'),
+                  Tab(icon: Icon(Icons.headphones_rounded, size: 18), text: 'Hören'),
+                  Tab(icon: Icon(Icons.edit_note_rounded, size: 18), text: 'Schreiben'),
+                ],
+              ),
+              // Streak record banner (Screenshot 2 exact match)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                color: Colors.black45,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.bolt_rounded, size: 14, color: Colors.amberAccent),
+                        const Text(' STREAK РЕКОРД: ', style: TextStyle(color: Colors.amberAccent, fontSize: 11, fontWeight: FontWeight.w900)),
+                        Text('$_maxCombo', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    Text('${initialB2Dataset.length} карточки B2 Beruf · 59 тем', style: const TextStyle(color: Colors.grey, fontSize: 10)),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
       body: TabBarView(
         controller: _tabCtrl,
         children: [
-          // 1. CARDS TAB
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: widget.isDarkMode
-                          ? [Colors.red.shade900, Colors.black]
-                          : [Colors.indigo.shade700, Colors.indigo.shade900],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(22),
-                    boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 12, offset: Offset(0, 4))],
-                  ),
-                  child: Column(
-                    children: [
-                      const Text('РЕКОРДНОЕ КОМБО',
-                          style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1)),
-                      const SizedBox(height: 4),
-                      Text('$_maxCombo STREAK',
-                          style: const TextStyle(color: Colors.amberAccent, fontSize: 34, fontWeight: FontWeight.w900, letterSpacing: 2)),
-                      const Divider(color: Colors.white24, height: 20),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.check_circle_outline_rounded, color: Colors.white70, size: 18),
-                          const SizedBox(width: 8),
-                          Text('Пройдено карточек: $_totalStudied',
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 18),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('ВЫБОР МОДУЛЯ', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, letterSpacing: 1)),
-                    Text('Всего: ${initialB2Dataset.length} карт', style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: categories.length,
-                    itemBuilder: (_, i) {
-                      final cat = categories[i];
-                      final count = cat == 'Все карточки' ? initialB2Dataset.length : (counts[cat] ?? 0);
-                      return Card(
-                        elevation: 2,
-                        margin: const EdgeInsets.only(bottom: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
-                          title: Text(cat, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                          subtitle: Text('$count карточек  ·  Начать раунд', style: const TextStyle(fontSize: 12)),
-                          trailing: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(color: Colors.redAccent.withAlpha(30), shape: BoxShape.circle),
-                            child: const Icon(Icons.play_arrow_rounded, size: 24, color: Colors.redAccent),
-                          ),
-                          onTap: () => _startSession(cat),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
+          // 1. CARDS TAB (Screenshot 2 direct flashcard interactive player)
+          CardsTab(
+            maxCombo: _maxCombo,
+            onStatsUpdated: _handleStatsUpdated,
           ),
 
-          // 2. LESEN TAB
+          // 2. LESEN TAB (Sprachbausteine)
           Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
@@ -182,35 +162,22 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> with SingleTi
                 children: [
                   const Icon(Icons.menu_book_rounded, size: 72, color: Colors.purpleAccent),
                   const SizedBox(height: 16),
-                  const Text('LESEN: Sprachbausteine',
-                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                  const Text('LESEN: Sprachbausteine', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
                   const SizedBox(height: 10),
-                  const Text(
-                    'Тренажер заполнения пропусков из реальных предложений экзамена B2 Beruf с DMC-рангами и комбо.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 14, color: Colors.grey),
-                  ),
-                  const SizedBox(height: 28),
+                  const Text('Заполнение пропусков по официальному формату DTB B2 с DMC-комбо и стилями.', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: Colors.grey)),
+                  const SizedBox(height: 24),
                   ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.purple.shade700,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                    ),
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => LesenScreen(onStatsUpdated: _loadStats)),
-                    ),
-                    icon: const Icon(Icons.play_arrow_rounded, size: 28),
-                    label: const Text('НАЧАТЬ ТРЕНИРОВКУ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.purple.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14)),
+                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => LesenScreen(onStatsUpdated: _loadStats))),
+                    icon: const Icon(Icons.play_arrow_rounded, size: 26),
+                    label: const Text('ОТКРЫТЬ LESEN', style: TextStyle(fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),
             ),
           ),
 
-          // 3. HÖREN TAB (Neu)
+          // 3. HÖREN TAB (DTB B2 Audio mit TTS)
           Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
@@ -219,35 +186,22 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> with SingleTi
                 children: [
                   const Icon(Icons.headphones_rounded, size: 72, color: Colors.redAccent),
                   const SizedBox(height: 16),
-                  const Text('HÖREN: DTB B2 Аудирование',
-                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                  const Text('HÖREN: DTB B2 Аудирование', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
                   const SizedBox(height: 10),
-                  const Text(
-                    'Аудирование с немецким диктором (TTS de-DE), разбором диалогов, мнений, докладов и заполнением Telefonnotiz.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 14, color: Colors.grey),
-                  ),
-                  const SizedBox(height: 28),
+                  const Text('Немецкая речь (TTS de-DE), диалоги, доклады, сообщения автоответчика и Telefonnotiz.', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: Colors.grey)),
+                  const SizedBox(height: 24),
                   ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red.shade900,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                    ),
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => HoerenScreen(onStatsUpdated: _loadStats)),
-                    ),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade900, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14)),
+                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => HoerenScreen(onStatsUpdated: _loadStats))),
                     icon: const Icon(Icons.hearing_rounded, size: 26),
-                    label: const Text('ОТКРЫТЬ АУДИРОВАНИЕ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                    label: const Text('ОТКРЫТЬ HÖREN', style: TextStyle(fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),
             ),
           ),
 
-          // 4. SCHREIBEN TAB
+          // 4. SCHREIBEN TAB (B2 Письмо)
           Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
@@ -256,28 +210,15 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> with SingleTi
                 children: [
                   const Icon(Icons.edit_note_rounded, size: 72, color: Colors.amberAccent),
                   const SizedBox(height: 16),
-                  const Text('SCHREIBEN: B2 Письмо',
-                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                  const Text('SCHREIBEN: B2 Письмо', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
                   const SizedBox(height: 10),
-                  const Text(
-                    'Тренировка деловых писем, форумов и служебных заметок с таймером, счетчиком слов и базой 218 Nomen-Verb-Verbindungen.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 14, color: Colors.grey),
-                  ),
-                  const SizedBox(height: 28),
+                  const Text('Деловые письма, жалобы, служебные записки с базой 218 Nomen-Verb-Verbindungen.', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: Colors.grey)),
+                  const SizedBox(height: 24),
                   ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.amber.shade800,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                    ),
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const SchreibenScreen()),
-                    ),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.amber.shade800, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14)),
+                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SchreibenScreen())),
                     icon: const Icon(Icons.create_rounded, size: 24),
-                    label: const Text('ОТКРЫТЬ ТРЕНАЖЕР', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                    label: const Text('ОТКРЫТЬ SCHREIBEN', style: TextStyle(fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),

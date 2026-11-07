@@ -9,8 +9,6 @@ Future<void> main() async {
   runApp(const B2AppRoot());
 }
 
-// ───────────────────────── ROOT / THEME ─────────────────────────
-
 class B2AppRoot extends StatefulWidget {
   const B2AppRoot({super.key});
 
@@ -45,13 +43,17 @@ class _B2AppRootState extends State<B2AppRoot> {
         useMaterial3: true,
         brightness: Brightness.light,
         colorSchemeSeed: Colors.indigo,
-        scaffoldBackgroundColor: const Color(0xFFF2F4F7),
+        scaffoldBackgroundColor: const Color(0xFFF1F5F9),
       ),
       darkTheme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.dark,
         colorSchemeSeed: Colors.redAccent,
-        scaffoldBackgroundColor: const Color(0xFF121212),
+        scaffoldBackgroundColor: const Color(0xFF030712),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF0F172A),
+          elevation: 0,
+        ),
       ),
       home: MainDashboardScreen(isDarkMode: _isDark, onToggleTheme: _toggleTheme),
     );
