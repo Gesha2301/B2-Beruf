@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'data.dart';
 
+// ───────────────────────── GAME ─────────────────────────
+
 class DMCGameScreen extends StatefulWidget {
   final String category;
   final VoidCallback onStatsUpdated;
@@ -44,6 +46,7 @@ class _DMCGameScreenState extends State<DMCGameScreen> with SingleTickerProvider
         ? List<Flashcard>.from(initialB2Dataset)
         : initialB2Dataset.where((c) => c.category == widget.category).toList();
     src.shuffle();
+    if (src.length > 25) src.removeRange(25, src.length);
     _queue = src;
     _total = src.length;
     _mastered = 0;

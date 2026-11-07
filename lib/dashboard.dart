@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'data.dart';
 import 'game_screen.dart';
+
+// ───────────────────────── DASHBOARD ─────────────────────────
 
 class MainDashboardScreen extends StatefulWidget {
   final bool isDarkMode;
@@ -43,7 +46,13 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const categories = ['Все карточки', 'Bewerbung', 'Vertrag & Recht', 'Büroalltag'];
+    final Map<String, int> counts = {};
+    for (final c in initialB2Dataset) {
+      counts[c.category] = (counts[c.category] ?? 0) + 1;
+    }
+
+    final uniqueCats = counts.keys.toList();
+    final categories = ['Все карточки', ...uniqueCats];
 
     return Scaffold(
       appBar: AppBar(
@@ -99,26 +108,38 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 24),
-            const Text('ВЫБОР МОДУЛЯ',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.1)),
-            const SizedBox(height: 12),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('ВЫБОР МОДУЛЯ',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.1)),
+                Text('Всего: ${initialB2Dataset.length} карт',
+                    style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              ],
+            ),
+            const SizedBox(height: 10),
             Expanded(
               child: ListView.builder(
                 itemCount: categories.length,
-                itemBuilder: (_, i) => Card(
-                  elevation: 3,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                    title: Text(categories[i],
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                    subtitle: const Text('Нажмите, чтобы начать раунд'),
-                    trailing: const Icon(Icons.play_arrow_rounded, size: 32, color: Colors.redAccent),
-                    onTap: () => _startSession(categories[i]),
-                  ),
-                ),
+                itemBuilder: (_, i) {
+                  final cat = categories[i];
+                  final count = cat == 'Все карточки' ? initialB2Dataset.length : (counts[cat] ?? 0);
+
+                  return Card(
+                    elevation: 2,
+                    margin: const EdgeInsets.only(bottom: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      title: Text(cat,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      subtitle: Text('$count карточек · Нажмите для раунда'),
+                      trailing: const Icon(Icons.play_arrow_rounded, size: 28, color: Colors.redAccent),
+                      onTap: () => _startSession(cat),
+                    ),
+                  );
+                },
               ),
             ),
           ],

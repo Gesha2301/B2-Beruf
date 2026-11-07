@@ -1,8 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'data.dart';
 import 'dashboard.dart';
 
-void main() => runApp(const B2AppRoot());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await loadCards();
+  runApp(const B2AppRoot());
+}
+
+// ───────────────────────── ROOT / THEME ─────────────────────────
 
 class B2AppRoot extends StatefulWidget {
   const B2AppRoot({super.key});

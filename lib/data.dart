@@ -1,12 +1,26 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
+
+// ───────────────────────── DATA ─────────────────────────
 
 class Flashcard {
   final String article, german, russian, explanation, category;
   const Flashcard(this.article, this.german, this.russian, this.explanation, this.category);
+
+  factory Flashcard.fromJson(Map<String, dynamic> j) {
+    return Flashcard(
+      j['article'] as String? ?? '',
+      j['german'] as String? ?? '',
+      j['russian'] as String? ?? '',
+      j['explanation'] as String? ?? '',
+      j['category'] as String? ?? 'Allgemein',
+    );
+  }
 }
 
-// Формат: артикль, немецкое слово, перевод, пример, категория
-const List<Flashcard> initialB2Dataset = [
+// Запасные карточки на случай ошибки чтения файла
+const List<Flashcard> fallbackB2Dataset = [
   Flashcard('die', 'Stellenausschreibung, -en', 'Объявление о вакансии',
       'Die Stellenausschreibung passt genau zu meinem Profil.', 'Bewerbung'),
   Flashcard('das', 'Anschreiben, -', 'Сопроводительное письмо',
@@ -28,6 +42,23 @@ const List<Flashcard> initialB2Dataset = [
   Flashcard('die', 'Rückmeldung, -en', 'Обратная связь / Отклик',
       'Ich warte noch auf eine Rückmeldung vom Team.', 'Büroalltag'),
 ];
+
+List<Flashcard> initialB2Dataset = List<Flashcard>.from(fallbackB2Dataset);
+
+Future<void> loadCards() async {
+  try {
+    final raw = await rootBundle.loadString('assets/cards.json');
+    final List<dynamic> list = json.decode(raw) as List<dynamic>;
+    final parsed = list.map((e) => Flashcard.fromJson(e as Map<String, dynamic>)).toList();
+    if (parsed.isNotEmpty) {
+      initialB2Dataset = parsed;
+    }
+  } catch (e) {
+    debugPrint('Ошибка загрузки assets/cards.json: $e');
+  }
+}
+
+// ───────────────────────── RANKS ─────────────────────────
 
 class Rank {
   final String name;
