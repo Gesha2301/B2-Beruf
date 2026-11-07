@@ -4,14 +4,12 @@ import 'data.dart';
 import 'sound.dart';
 import 'game_screen.dart';
 import 'lesen_screen.dart';
+import 'hoeren_screen.dart';
 import 'schreiben_screen.dart';
-
-// ───────────────────────── DASHBOARD ─────────────────────────
 
 class MainDashboardScreen extends StatefulWidget {
   final bool isDarkMode;
   final VoidCallback onToggleTheme;
-
   const MainDashboardScreen({super.key, required this.isDarkMode, required this.onToggleTheme});
 
   @override
@@ -26,7 +24,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> with SingleTi
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 3, vsync: this);
+    _tabCtrl = TabController(length: 4, vsync: this);
     _loadStats();
   }
 
@@ -49,7 +47,10 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> with SingleTi
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => DMCGameScreen(category: category, onStatsUpdated: _loadStats),
+        builder: (_) => GameScreen(
+          selectedCategory: category,
+          onStatsUpdated: _loadStats,
+        ),
       ),
     );
     _loadStats();
@@ -57,38 +58,36 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> with SingleTi
 
   @override
   Widget build(BuildContext context) {
-    final Map<String, int> counts = {};
-    for (final c in initialB2Dataset) {
-      counts[c.category] = (counts[c.category] ?? 0) + 1;
-    }
-
-    final uniqueCats = counts.keys.toList();
-    final categories = ['Все карточки', ...uniqueCats];
+    final categories = ['Все карточки', ...getUniqueCategories()];
+    final counts = getCategoryCounts();
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('🔥 B2 BERUF DMC',
-            style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.5, fontSize: 18)),
+        title: const Text('B2 BERUF DMC',
+            style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 2, fontSize: 18)),
+        centerTitle: false,
         actions: [
           IconButton(
             icon: Icon(DmcAudio.soundEnabled ? Icons.volume_up_rounded : Icons.volume_off_rounded),
-            tooltip: 'Звук',
-            onPressed: () => setState(() => DmcAudio.toggleSound()),
+            onPressed: () {
+              setState(() => DmcAudio.toggleSound());
+            },
+            tooltip: 'Звуковые эффекты',
           ),
           IconButton(
-            icon: Icon(widget.isDarkMode ? Icons.light_mode : Icons.dark_mode),
+            icon: Icon(widget.isDarkMode ? Icons.wb_sunny_rounded : Icons.nightlight_round),
             onPressed: widget.onToggleTheme,
+            tooltip: 'Сменить тему',
           ),
         ],
         bottom: TabBar(
           controller: _tabCtrl,
-          indicatorColor: Colors.redAccent,
-          labelColor: Colors.redAccent,
-          unselectedLabelColor: Colors.grey,
+          isScrollable: true,
           labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
           tabs: const [
-            Tab(icon: Icon(Icons.style_rounded, size: 20), text: 'Карточки'),
+            Tab(icon: Icon(Icons.style_rounded, size: 20), text: 'Карты'),
             Tab(icon: Icon(Icons.menu_book_rounded, size: 20), text: 'Lesen'),
+            Tab(icon: Icon(Icons.headphones_rounded, size: 20), text: 'Hören'),
             Tab(icon: Icon(Icons.edit_note_rounded, size: 20), text: 'Schreiben'),
           ],
         ),
@@ -151,7 +150,6 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> with SingleTi
                     itemBuilder: (_, i) {
                       final cat = categories[i];
                       final count = cat == 'Все карточки' ? initialB2Dataset.length : (counts[cat] ?? 0);
-
                       return Card(
                         elevation: 2,
                         margin: const EdgeInsets.only(bottom: 10),
@@ -175,7 +173,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> with SingleTi
             ),
           ),
 
-          // 2. LESEN TAB (Quick launcher into Sprachbausteine)
+          // 2. LESEN TAB
           Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
@@ -212,7 +210,44 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> with SingleTi
             ),
           ),
 
-          // 3. SCHREIBEN TAB (Quick launcher into Writing trainer)
+          // 3. HÖREN TAB (Neu)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.headphones_rounded, size: 72, color: Colors.redAccent),
+                  const SizedBox(height: 16),
+                  const Text('HÖREN: DTB B2 Аудирование',
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Аудирование с немецким диктором (TTS de-DE), разбором диалогов, мнений, докладов и заполнением Telefonnotiz.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 14, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 28),
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red.shade900,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                    ),
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => HoerenScreen(onStatsUpdated: _loadStats)),
+                    ),
+                    icon: const Icon(Icons.hearing_rounded, size: 26),
+                    label: const Text('ОТКРЫТЬ АУДИРОВАНИЕ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // 4. SCHREIBEN TAB
           Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
