@@ -42,8 +42,14 @@ class _B2AppRootState extends State<B2AppRoot> {
       theme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.light,
-        colorSchemeSeed: Colors.indigo,
+        colorSchemeSeed: const Color(0xFFDC2626),
         scaffoldBackgroundColor: const Color(0xFFF1F5F9),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.white,
+          foregroundColor: Color(0xFF0F172A),
+          elevation: 0,
+          surfaceTintColor: Colors.transparent,
+        ),
       ),
       darkTheme: ThemeData(
         useMaterial3: true,
@@ -52,7 +58,9 @@ class _B2AppRootState extends State<B2AppRoot> {
         scaffoldBackgroundColor: const Color(0xFF030712),
         appBarTheme: const AppBarTheme(
           backgroundColor: Color(0xFF0F172A),
+          foregroundColor: Colors.white,
           elevation: 0,
+          surfaceTintColor: Colors.transparent,
         ),
       ),
       home: MainDashboardScreen(isDarkMode: _isDark, onToggleTheme: _toggleTheme),

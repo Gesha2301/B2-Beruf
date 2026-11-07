@@ -4,12 +4,19 @@ import 'data.dart';
 import 'sound.dart';
 import 'card_face.dart';
 import 'score_bar.dart';
+import 'category_picker.dart';
 
 class CardsTab extends StatefulWidget {
   final int maxCombo;
   final Function(int combo, int delta) onStatsUpdated;
+  final bool isDarkMode;
 
-  const CardsTab({super.key, required this.maxCombo, required this.onStatsUpdated});
+  const CardsTab({
+    super.key,
+    required this.maxCombo,
+    required this.onStatsUpdated,
+    required this.isDarkMode,
+  });
 
   @override
   State<CardsTab> createState() => _CardsTabState();
@@ -25,7 +32,6 @@ class _CardsTabState extends State<CardsTab> with SingleTickerProviderStateMixin
   int _combo = 0;
   int _score = 0;
   bool _showFront = true;
-
   Offset _drag = Offset.zero;
   late AnimationController _animCtrl;
   Animation<Offset>? _flyAnim;
@@ -53,7 +59,6 @@ class _CardsTabState extends State<CardsTab> with SingleTickerProviderStateMixin
     final copy = List<Flashcard>.from(pool)..shuffle(Random());
     final count = (_cardLimit == -1 || _cardLimit > copy.length) ? copy.length : _cardLimit;
     _deck = copy.take(count).toList();
-
     _queue.clear();
     _queue.addAll(_deck);
     _total = _deck.length;
@@ -67,7 +72,6 @@ class _CardsTabState extends State<CardsTab> with SingleTickerProviderStateMixin
   void _onAnswer(bool known) {
     if (_queue.isEmpty || _animCtrl.isAnimating) return;
     final card = _queue.removeAt(0);
-
     setState(() {
       _showFront = true;
       _flashColor = known ? Colors.greenAccent : Colors.redAccent;
@@ -90,7 +94,6 @@ class _CardsTabState extends State<CardsTab> with SingleTickerProviderStateMixin
         widget.onStatsUpdated(0, 1);
       }
     });
-
     Future.delayed(const Duration(milliseconds: 150), () {
       if (mounted) setState(() => _flashColor = null);
     });
@@ -108,57 +111,25 @@ class _CardsTabState extends State<CardsTab> with SingleTickerProviderStateMixin
     });
   }
 
-  void _showCategoryPicker() {
-    final categories = ['Все карточки', ...getUniqueCategories()];
-    final counts = getCategoryCounts();
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF0F172A),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) {
-        return Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('ВЫБОР МОДУЛЯ / ТЕМЫ', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: Colors.white)),
-                  IconButton(icon: const Icon(Icons.close, color: Colors.grey), onPressed: () => Navigator.pop(ctx)),
-                ],
-              ),
-            ),
-            Expanded(
-              child: ListView.builder(
-                itemCount: categories.length,
-                itemBuilder: (_, i) {
-                  final cat = categories[i];
-                  final cnt = cat == 'Все карточки' ? initialB2Dataset.length : (counts[cat] ?? 0);
-                  final isSel = cat == _selectedCategory;
-                  return ListTile(
-                    tileColor: isSel ? Colors.redAccent.withAlpha(40) : null,
-                    title: Text(cat, style: TextStyle(color: isSel ? Colors.redAccent : Colors.white, fontWeight: FontWeight.bold)),
-                    trailing: Text('$cnt карт', style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      setState(() => _selectedCategory = cat);
-                      _initDeck();
-                    },
-                  );
-                },
-              ),
-            ),
-          ],
-        );
+  void _openPicker() {
+    showCategoryPickerBottomSheet(
+      context,
+      isDarkMode: widget.isDarkMode,
+      selectedCategory: _selectedCategory,
+      onSelect: (cat) {
+        setState(() => _selectedCategory = cat);
+        _initDeck();
       },
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final dark = widget.isDarkMode;
     final rank = rankFor(_combo);
     final card = _queue.isNotEmpty ? _queue.first : null;
+    final boxBg = dark ? const Color(0xFF0F172A) : Colors.white;
+    final boxBorder = dark ? const Color(0xFF1E293B) : const Color(0xFFCBD5E1);
 
     return Stack(
       children: [
@@ -166,21 +137,17 @@ class _CardsTabState extends State<CardsTab> with SingleTickerProviderStateMixin
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Column(
             children: [
-              // 1. MODULE & LIMIT CONTROL BAR (Screenshot 2 exact match)
+              // 1. MODULE & LIMIT CONTROL BAR
               Row(
                 children: [
                   Expanded(
                     flex: 5,
                     child: InkWell(
-                      onTap: _showCategoryPicker,
+                      onTap: _openPicker,
                       borderRadius: BorderRadius.circular(14),
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF0F172A),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: const Color(0xFF1E293B)),
-                        ),
+                        decoration: BoxDecoration(color: boxBg, borderRadius: BorderRadius.circular(14), border: Border.all(color: boxBorder)),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -189,44 +156,34 @@ class _CardsTabState extends State<CardsTab> with SingleTickerProviderStateMixin
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Text('МОДУЛЬ / ТЕМА',
-                                      style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Colors.grey)),
+                                  Text('МОДУЛЬ / ТЕМА', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: dark ? Colors.grey : const Color(0xFF64748B))),
                                   const SizedBox(height: 2),
-                                  Text(
-                                    _selectedCategory,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.amberAccent),
-                                  ),
+                                  Text(_selectedCategory, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: dark ? Colors.amberAccent : const Color(0xFFB45309))),
                                 ],
                               ),
                             ),
-                            const Icon(Icons.filter_alt_outlined, size: 18, color: Colors.grey),
+                            Icon(Icons.filter_alt_outlined, size: 18, color: dark ? Colors.grey : const Color(0xFF64748B)),
                           ],
                         ),
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
-
                   Expanded(
                     flex: 4,
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0F172A),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: const Color(0xFF1E293B)),
-                      ),
+                      decoration: BoxDecoration(color: boxBg, borderRadius: BorderRadius.circular(14), border: Border.all(color: boxBorder)),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<int>(
                           value: _cardLimit,
                           isExpanded: true,
-                          dropdownColor: const Color(0xFF0F172A),
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                          dropdownColor: boxBg,
+                          iconEnabledColor: dark ? Colors.white70 : const Color(0xFF475569),
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: dark ? Colors.white : const Color(0xFF0F172A)),
                           items: const [
                             DropdownMenuItem(value: 10, child: Text('10 карт')),
-                            DropdownMenuItem(value: 25, child: Text('25 карт (стандарт)')),
+                            DropdownMenuItem(value: 25, child: Text('25 карт')),
                             DropdownMenuItem(value: 50, child: Text('50 карт')),
                             DropdownMenuItem(value: -1, child: Text('Все карты')),
                           ],
@@ -241,25 +198,19 @@ class _CardsTabState extends State<CardsTab> with SingleTickerProviderStateMixin
                     ),
                   ),
                   const SizedBox(width: 6),
-
                   InkWell(
                     onTap: _initDeck,
                     borderRadius: BorderRadius.circular(12),
                     child: Container(
                       padding: const EdgeInsets.all(11),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0F172A),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFF1E293B)),
-                      ),
-                      child: const Icon(Icons.shuffle_rounded, size: 18, color: Colors.white70),
+                      decoration: BoxDecoration(color: boxBg, borderRadius: BorderRadius.circular(12), border: Border.all(color: boxBorder)),
+                      child: Icon(Icons.shuffle_rounded, size: 18, color: dark ? Colors.white70 : const Color(0xFF475569)),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 10),
-
-              // 2. DMC SCORE BOARD (Screenshot 2 exact match)
+              // 2. DMC SCORE BOARD
               DmcScoreBar(
                 score: _score,
                 combo: _combo,
@@ -267,21 +218,21 @@ class _CardsTabState extends State<CardsTab> with SingleTickerProviderStateMixin
                 total: _total,
                 queueLength: _queue.length,
                 rank: rank,
+                isDarkMode: dark,
               ),
               const SizedBox(height: 12),
-
               // 3. FLASHCARD DISPLAY
               Expanded(
                 child: card == null
                     ? Container(
                         padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(color: const Color(0xFF0B132B), borderRadius: BorderRadius.circular(24), border: Border.all(color: Colors.greenAccent)),
+                        decoration: BoxDecoration(color: boxBg, borderRadius: BorderRadius.circular(24), border: Border.all(color: Colors.greenAccent)),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             const Icon(Icons.emoji_events_rounded, size: 64, color: Colors.amberAccent),
                             const SizedBox(height: 12),
-                            const Text('РАУНД ЗАВЕРШЕН!', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
+                            Text('РАУНД ЗАВЕРШЕН!', style: TextStyle(color: dark ? Colors.white : const Color(0xFF0F172A), fontSize: 20, fontWeight: FontWeight.w900)),
                             const SizedBox(height: 16),
                             ElevatedButton.icon(
                               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFBE123C), foregroundColor: Colors.white),
@@ -313,14 +264,13 @@ class _CardsTabState extends State<CardsTab> with SingleTickerProviderStateMixin
                           offset: _animCtrl.isAnimating && _flyAnim != null ? _flyAnim!.value : _drag,
                           child: Transform.rotate(
                             angle: _drag.dx / 350,
-                            child: CardFaceWidget(card: card, showFront: _showFront),
+                            child: CardFaceWidget(card: card, showFront: _showFront, isDarkMode: dark),
                           ),
                         ),
                       ),
               ),
               const SizedBox(height: 12),
-
-              // 4. BOTTOM 3 BUTTONS (Screenshot 2 exact match)
+              // 4. BOTTOM 3 BUTTONS
               Row(
                 children: [
                   Expanded(
@@ -341,25 +291,23 @@ class _CardsTabState extends State<CardsTab> with SingleTickerProviderStateMixin
                     ),
                   ),
                   const SizedBox(width: 8),
-
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1E293B),
-                      foregroundColor: Colors.white,
+                      backgroundColor: dark ? const Color(0xFF1E293B) : Colors.white,
+                      foregroundColor: dark ? Colors.white : const Color(0xFF0F172A),
                       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      side: const BorderSide(color: Color(0xFF334155)),
+                      side: BorderSide(color: dark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
                       elevation: 2,
                     ),
                     onPressed: () {
                       DmcAudio.playSlash();
                       setState(() => _showFront = !_showFront);
                     },
-                    icon: const Icon(Icons.refresh_rounded, color: Colors.amberAccent, size: 20),
+                    icon: Icon(Icons.refresh_rounded, color: dark ? Colors.amberAccent : const Color(0xFFD97706), size: 20),
                     label: const Text('ОБОРОТ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                   ),
                   const SizedBox(width: 8),
-
                   Expanded(
                     child: ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
@@ -383,7 +331,6 @@ class _CardsTabState extends State<CardsTab> with SingleTickerProviderStateMixin
             ],
           ),
         ),
-
         Positioned.fill(
           child: IgnorePointer(
             child: AnimatedContainer(
