@@ -171,7 +171,7 @@ class _HoerenScreenState extends State<HoerenScreen> {
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [Colors.black, Colors.red.shade950]),
+                gradient: LinearGradient(colors: [Colors.black, const Color(0xFF450A0A)]),
                 borderRadius: BorderRadius.circular(18),
                 border: Border.all(color: Colors.red.shade800),
               ),
